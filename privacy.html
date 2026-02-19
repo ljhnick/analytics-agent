@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy — Analytics Agent</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.7;
+            color: #1a1a1a;
+            background: #fff;
+            padding: 2rem 1rem;
+        }
+        main {
+            max-width: 640px;
+            margin: 0 auto;
+        }
+        h1 {
+            font-size: 1.75rem;
+            margin-bottom: 0.5rem;
+        }
+        .updated {
+            color: #666;
+            font-size: 0.875rem;
+            margin-bottom: 2rem;
+        }
+        h2 {
+            font-size: 1.125rem;
+            margin-top: 2rem;
+            margin-bottom: 0.5rem;
+        }
+        p, ul {
+            margin-bottom: 1rem;
+        }
+        ul {
+            padding-left: 1.5rem;
+        }
+        li {
+            margin-bottom: 0.25rem;
+        }
+        code {
+            background: #f4f4f4;
+            padding: 0.15em 0.35em;
+            border-radius: 3px;
+            font-size: 0.9em;
+        }
+        a {
+            color: #0055d4;
+        }
+    </style>
+</head>
+<body>
+<main>
+    <h1>Privacy Policy</h1>
+    <p class="updated">Last updated: February 18, 2026</p>
+
+    <h2>What is Analytics Agent?</h2>
+    <p>Analytics Agent is an open-source command-line tool that lets users query their own Google Analytics 4, Firebase Authentication, and PostgreSQL data for analysis. The source code is publicly available on <a href="https://github.com/ljhnick/analytics-agent">GitHub</a>.</p>
+
+    <h2>What data does the app access?</h2>
+    <p>When you sign in with Google, the app requests the following permissions:</p>
+    <ul>
+        <li><strong>Google Analytics (read-only)</strong> — to list your GA4 properties and run reports on the property you select.</li>
+        <li><strong>Firebase (read-only)</strong> — to list your Firebase projects and read authentication user records.</li>
+        <li><strong>Email address</strong> — to identify your account during sign-in.</li>
+    </ul>
+
+    <h2>How is the data used?</h2>
+    <p>All data is used solely to generate analytics reports for you, the authenticated user. The app runs entirely on your own computer — no data is sent to any third-party server.</p>
+
+    <h2>What the app does NOT do</h2>
+    <ul>
+        <li>Does not store your Google Analytics or Firebase data on any external server.</li>
+        <li>Does not modify, delete, or write any data to your Google Analytics or Firebase accounts.</li>
+        <li>Does not sell, share, or transfer your data to third parties.</li>
+        <li>Does not collect usage analytics or telemetry.</li>
+    </ul>
+
+    <h2>Where are credentials stored?</h2>
+    <p>OAuth2 tokens are stored locally on your machine at <code>~/.analytics-agent/tokens.json</code> with restricted file permissions (owner-only read/write). You can delete them at any time by running <code>analytics-agent auth logout</code>.</p>
+
+    <h2>Revoking access</h2>
+    <p>You can revoke the app's access to your Google account at any time by visiting <a href="https://myaccount.google.com/permissions">Google Account Permissions</a> and removing "Analytics Agent".</p>
+
+    <h2>Contact</h2>
+    <p>If you have questions about this policy, please open an issue on the <a href="https://github.com/ljhnick/analytics-agent/issues">GitHub repository</a>.</p>
+</main>
+</body>
+</html>

@@ -3,6 +3,10 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.so
+*.egg-info/
+dist/
+build/
+.python-version
 
 # Virtual environment
 venv/
@@ -30,6 +34,7 @@ Thumbs.db
 *.csv
 *.xlsx
 
-# GCP credentials
+# GCP credentials — NEVER commit these
 *.json
 !package.json
+!pyproject.toml

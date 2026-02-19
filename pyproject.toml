@@ -1,0 +1,41 @@
+[project]
+name = "analytics-agent"
+version = "0.1.0"
+description = "Connect to GA4, Firebase & PostgreSQL with one Google login — then let AI analyse your data."
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+dependencies = [
+    "google-analytics-data",
+    "google-analytics-admin",
+    "google-auth",
+    "google-auth-oauthlib",
+    "firebase-admin",
+    "sqlalchemy",
+    "psycopg2-binary",
+    "pandas",
+    "python-dotenv",
+    "requests",
+]
+
+[project.optional-dependencies]
+cloud-sql = [
+    "cloud-sql-python-connector[pg8000]",
+    "pg8000",
+]
+
+[dependency-groups]
+dev = [
+    "numpy",
+    "matplotlib",
+    "seaborn",
+    "plotly",
+    "jupyter",
+]
+
+[project.scripts]
+analytics-agent = "analytics_agent.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

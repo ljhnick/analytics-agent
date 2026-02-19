@@ -1,97 +1,75 @@
-"""
-Google Analytics 4 Data API Connection
+"""Google Analytics 4 Data API connection.
 
-Provides a GAConnection class that mirrors the pattern of database_connection.py.
-Authenticates via service account and queries the GA4 Data API, returning pandas
-DataFrames for analysis.
+Authenticates via the unified credential chain (OAuth2 -> service account ->
+ADC) and queries the GA4 Data API, returning pandas DataFrames.
 
-Usage:
-    from ga_connection import get_ga_connection
+Usage::
+
+    from analytics_agent.connections import get_ga_connection
 
     ga = get_ga_connection()
     ga.connect()
-
-    # Run a report
     df = ga.run_report(
         dimensions=["date", "eventName"],
         metrics=["eventCount"],
         date_range=("2026-02-01", "today"),
     )
-
-    # Video funnel helper
-    df = ga.video_funnel(start_date="2026-02-01")
 """
 
-import os
-import json
-import tempfile
 import logging
-from datetime import date, timedelta
+import os
 
 import pandas as pd
 from dotenv import load_dotenv
 
+from analytics_agent.config import get_config_value
+from analytics_agent.credentials import resolve_credentials
+
 load_dotenv()
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# Constants
-# ---------------------------------------------------------------------------
-DEFAULT_PROPERTY_ID = os.getenv("GA4_PROPERTY_ID", "515651705")
+
+def _resolve_property_id(explicit: str | None = None) -> str:
+    """Property ID priority: explicit arg > env var > saved config."""
+    if explicit:
+        return explicit
+    from_env = os.getenv("GA4_PROPERTY_ID")
+    if from_env:
+        return from_env
+    from_cfg = get_config_value("ga4", "property_id")
+    if from_cfg:
+        return str(from_cfg)
+    raise RuntimeError(
+        "No GA4 property ID found.  Run `analytics-agent setup` or pass "
+        "property_id= explicitly."
+    )
 
 
-def _ensure_gcp_credentials():
-    """Reuse the same logic from database_connection.py: if
-    GCP_SERVICE_ACCOUNT_JSON is set inline, write it to a temp file and point
-    GOOGLE_APPLICATION_CREDENTIALS at it."""
-    sa_json = os.getenv("GCP_SERVICE_ACCOUNT_JSON")
-    if sa_json and not os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
-        creds = json.loads(sa_json)
-        creds_path = os.path.join(tempfile.gettempdir(), "gcp_sa_key.json")
-        with open(creds_path, "w") as f:
-            json.dump(creds, f)
-        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = creds_path
-        logger.info(f"Wrote GCP SA credentials to {creds_path}")
-
-
-# ---------------------------------------------------------------------------
-# GAConnection
-# ---------------------------------------------------------------------------
 class GAConnection:
-    """Thin wrapper around the GA4 Data API (v1beta).
-
-    Mirrors the interface of DatabaseConnection so the two can be used
-    interchangeably in analysis scripts.
-    """
+    """Thin wrapper around the GA4 Data API (v1beta)."""
 
     def __init__(self, property_id: str | None = None):
-        self.property_id = property_id or DEFAULT_PROPERTY_ID
+        self.property_id = _resolve_property_id(property_id)
         self.property_path = f"properties/{self.property_id}"
         self.client = None
 
-    # ------------------------------------------------------------------
-    # Connection
-    # ------------------------------------------------------------------
+    # ── Connection ───────────────────────────────────────────────────────
+
     def connect(self) -> bool:
-        """Authenticate and create the BetaAnalyticsDataClient."""
         try:
-            _ensure_gcp_credentials()
             from google.analytics.data_v1beta import BetaAnalyticsDataClient
 
-            self.client = BetaAnalyticsDataClient()
-            logger.info(
-                f"Connected to GA4 Data API (property {self.property_id})"
-            )
+            creds = resolve_credentials()
+            self.client = BetaAnalyticsDataClient(credentials=creds)
+            logger.info(f"Connected to GA4 Data API (property {self.property_id})")
             return True
         except Exception as e:
             logger.error(f"Failed to connect to GA4 Data API: {e}")
             return False
 
-    # ------------------------------------------------------------------
-    # Core query
-    # ------------------------------------------------------------------
+    # ── Core query ───────────────────────────────────────────────────────
+
     def run_report(
         self,
         dimensions: list[str],
@@ -103,29 +81,7 @@ class GAConnection:
         limit: int = 10_000,
         keep_empty_rows: bool = False,
     ) -> pd.DataFrame | None:
-        """Run a GA4 Data API report and return a pandas DataFrame.
-
-        Parameters
-        ----------
-        dimensions : list[str]
-            GA4 dimension names, e.g. ["date", "eventName", "customEvent:video_id"]
-        metrics : list[str]
-            GA4 metric names, e.g. ["eventCount", "totalUsers"]
-        date_range : tuple[str, str]
-            (start_date, end_date).  Accepts "today", "yesterday", "NdaysAgo",
-            or "YYYY-MM-DD" strings.
-        dimension_filter : FilterExpression, optional
-            A google.analytics.data_v1beta.types.FilterExpression object.
-        metric_filter : FilterExpression, optional
-        order_bys : list[OrderBy], optional
-        limit : int
-            Max rows to return (API max is 100 000 per request).
-        keep_empty_rows : bool
-
-        Returns
-        -------
-        pd.DataFrame or None
-        """
+        """Run a GA4 Data API report and return a pandas DataFrame."""
         if not self.client:
             if not self.connect():
                 return None
@@ -160,7 +116,6 @@ class GAConnection:
             logger.error(f"GA4 API error: {e}")
             return None
 
-        # Parse response into a DataFrame
         rows_data = []
         dim_headers = [h.name for h in response.dimension_headers]
         met_headers = [h.name for h in response.metric_headers]
@@ -174,12 +129,10 @@ class GAConnection:
 
         df = pd.DataFrame(rows_data)
 
-        # Auto-convert numeric metric columns
         for col in met_headers:
             if col in df.columns:
                 df[col] = pd.to_numeric(df[col], errors="coerce")
 
-        # Auto-convert 'date' dimension (YYYYMMDD) to datetime
         if "date" in df.columns:
             df["date"] = pd.to_datetime(df["date"], format="%Y%m%d", errors="coerce")
 
@@ -189,16 +142,11 @@ class GAConnection:
         )
         return df
 
-    # ------------------------------------------------------------------
-    # Filter helpers
-    # ------------------------------------------------------------------
+    # ── Filter helpers ───────────────────────────────────────────────────
+
     @staticmethod
     def filter_by_event_name(event_name: str):
-        """Return a dimension filter that matches a single eventName."""
-        from google.analytics.data_v1beta.types import (
-            Filter,
-            FilterExpression,
-        )
+        from google.analytics.data_v1beta.types import Filter, FilterExpression
 
         return FilterExpression(
             filter=Filter(
@@ -209,7 +157,6 @@ class GAConnection:
 
     @staticmethod
     def filter_by_event_names(event_names: list[str]):
-        """Return a dimension filter that matches any of the given eventNames."""
         from google.analytics.data_v1beta.types import (
             Filter,
             FilterExpression,
@@ -230,15 +177,11 @@ class GAConnection:
             )
         )
 
-    # ------------------------------------------------------------------
-    # Convenience report methods
-    # ------------------------------------------------------------------
+    # ── Convenience reports ──────────────────────────────────────────────
+
     def event_counts(
-        self,
-        start_date: str = "30daysAgo",
-        end_date: str = "today",
+        self, start_date: str = "30daysAgo", end_date: str = "today"
     ) -> pd.DataFrame | None:
-        """Get event counts grouped by eventName."""
         return self.run_report(
             dimensions=["eventName"],
             metrics=["eventCount"],
@@ -251,7 +194,6 @@ class GAConnection:
         start_date: str = "30daysAgo",
         end_date: str = "today",
     ) -> pd.DataFrame | None:
-        """Get daily event counts, optionally filtered to specific events."""
         dim_filter = (
             self.filter_by_event_names(event_names) if event_names else None
         )
@@ -263,21 +205,11 @@ class GAConnection:
         )
 
     def video_funnel(
-        self,
-        start_date: str = "30daysAgo",
-        end_date: str = "today",
+        self, start_date: str = "30daysAgo", end_date: str = "today"
     ) -> pd.DataFrame | None:
-        """Get video engagement funnel: play -> progress (25/50/75) -> complete.
-
-        Returns a DataFrame with columns:
-            date, eventName, customEvent:video_id, customEvent:video_title,
-            eventCount, totalUsers
-        Plus customEvent:video_percent and customEvent:device if those
-        custom dimensions are registered in the GA4 property.
-        """
+        """Video engagement funnel: play -> progress (25/50/75) -> complete."""
         video_events = ["video_play", "video_progress", "video_complete"]
 
-        # Try with all custom dimensions first; fall back if not registered
         full_dims = [
             "date",
             "eventName",
@@ -295,7 +227,6 @@ class GAConnection:
         if df is not None:
             return df
 
-        # Fallback: drop custom dimensions that may not be registered yet
         logger.warning(
             "Retrying video_funnel without custom event parameters "
             "(they may not be registered as GA4 custom dimensions yet)"
@@ -308,28 +239,20 @@ class GAConnection:
         )
 
     def video_funnel_summary(
-        self,
-        start_date: str = "30daysAgo",
-        end_date: str = "today",
+        self, start_date: str = "30daysAgo", end_date: str = "today"
     ) -> pd.DataFrame | None:
-        """Summarised video funnel: total plays, progress milestones, completions.
-
-        Returns a single-row-per-event summary suitable for funnel charts.
-        """
+        """Aggregated video funnel suitable for funnel charts."""
         video_events = ["video_play", "video_progress", "video_complete"]
 
-        # Try with video_percent first for detailed breakdown
         df = self.run_report(
             dimensions=["eventName", "customEvent:video_percent"],
             metrics=["eventCount", "totalUsers"],
             date_range=(start_date, end_date),
             dimension_filter=self.filter_by_event_names(video_events),
         )
-
         has_percent = df is not None and not df.empty
 
         if not has_percent:
-            # Fallback without video_percent
             logger.warning(
                 "customEvent:video_percent not available; "
                 "falling back to eventName-only summary"
@@ -344,7 +267,6 @@ class GAConnection:
         if df is None or df.empty:
             return df
 
-        # Build a clean funnel label
         def _label(row):
             name = row["eventName"]
             pct = row.get("customEvent:video_percent", "")
@@ -353,14 +275,11 @@ class GAConnection:
             return name
 
         df["funnel_step"] = df.apply(_label, axis=1)
-
         summary = (
             df.groupby("funnel_step")
             .agg(event_count=("eventCount", "sum"), users=("totalUsers", "sum"))
             .reset_index()
         )
-
-        # Order the funnel logically
         order = [
             "video_play",
             "video_progress_25%",
@@ -371,15 +290,11 @@ class GAConnection:
         summary["_sort"] = summary["funnel_step"].apply(
             lambda x: order.index(x) if x in order else 99
         )
-        summary = summary.sort_values("_sort").drop(columns="_sort").reset_index(drop=True)
-        return summary
+        return summary.sort_values("_sort").drop(columns="_sort").reset_index(drop=True)
 
     def landing_page_report(
-        self,
-        start_date: str = "30daysAgo",
-        end_date: str = "today",
+        self, start_date: str = "30daysAgo", end_date: str = "today"
     ) -> pd.DataFrame | None:
-        """Get landing page performance: sessions, users, engagement."""
         return self.run_report(
             dimensions=["landingPage", "sessionDefaultChannelGroup"],
             metrics=[
@@ -395,42 +310,26 @@ class GAConnection:
         )
 
     def traffic_sources(
-        self,
-        start_date: str = "30daysAgo",
-        end_date: str = "today",
+        self, start_date: str = "30daysAgo", end_date: str = "today"
     ) -> pd.DataFrame | None:
-        """Get traffic source breakdown."""
         return self.run_report(
-            dimensions=[
-                "sessionSource",
-                "sessionMedium",
-                "sessionCampaignName",
-            ],
+            dimensions=["sessionSource", "sessionMedium", "sessionCampaignName"],
             metrics=["sessions", "totalUsers", "newUsers", "engagementRate"],
             date_range=(start_date, end_date),
         )
 
     def device_breakdown(
-        self,
-        start_date: str = "30daysAgo",
-        end_date: str = "today",
+        self, start_date: str = "30daysAgo", end_date: str = "today"
     ) -> pd.DataFrame | None:
-        """Get sessions/users broken down by device category."""
         return self.run_report(
             dimensions=["deviceCategory"],
             metrics=["sessions", "totalUsers", "newUsers", "engagementRate"],
             date_range=(start_date, end_date),
         )
 
-    # ------------------------------------------------------------------
-    # Metadata / exploration
-    # ------------------------------------------------------------------
-    def get_available_metrics_and_dimensions(self) -> pd.DataFrame | None:
-        """Fetch the list of available dimensions and metrics for this property.
+    # ── Metadata ─────────────────────────────────────────────────────────
 
-        Uses the GA4 Metadata API.  Useful for discovery when building new
-        reports.
-        """
+    def get_available_metrics_and_dimensions(self) -> pd.DataFrame | None:
         if not self.client:
             if not self.connect():
                 return None
@@ -447,42 +346,32 @@ class GAConnection:
 
         rows = []
         for d in response.dimensions:
-            rows.append(
-                {
-                    "type": "dimension",
-                    "api_name": d.api_name,
-                    "ui_name": d.ui_name,
-                    "description": d.description,
-                    "category": d.category,
-                    "custom": d.custom_definition,
-                }
-            )
+            rows.append({
+                "type": "dimension",
+                "api_name": d.api_name,
+                "ui_name": d.ui_name,
+                "description": d.description,
+                "category": d.category,
+                "custom": d.custom_definition,
+            })
         for m in response.metrics:
-            rows.append(
-                {
-                    "type": "metric",
-                    "api_name": m.api_name,
-                    "ui_name": m.ui_name,
-                    "description": m.description,
-                    "category": m.category,
-                    "custom": m.custom_definition,
-                }
-            )
+            rows.append({
+                "type": "metric",
+                "api_name": m.api_name,
+                "ui_name": m.ui_name,
+                "description": m.description,
+                "category": m.category,
+                "custom": m.custom_definition,
+            })
         return pd.DataFrame(rows)
 
-    # ------------------------------------------------------------------
-    # Teardown
-    # ------------------------------------------------------------------
+    # ── Teardown ─────────────────────────────────────────────────────────
+
     def close(self):
-        """Close the underlying gRPC transport."""
         if self.client:
             self.client.transport.close()
             logger.info("GA4 client closed")
 
 
-# ---------------------------------------------------------------------------
-# Convenience
-# ---------------------------------------------------------------------------
 def get_ga_connection(property_id: str | None = None) -> GAConnection:
-    """Get a GAConnection instance (mirrors get_db_connection())."""
     return GAConnection(property_id=property_id)
