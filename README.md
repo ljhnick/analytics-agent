@@ -85,3 +85,7 @@ The credential chain is: **OAuth2 tokens → service account → Application Def
 - Python 3.11+
 - A Google account with access to your GA4 property and/or Firebase project
 - A PostgreSQL database (optional)
+
+## Privacy
+
+See our [Privacy Policy](https://ljhnick.github.io/analytics-agent/privacy.html). Analytics Agent runs entirely on your machine — no data is sent to any third-party server.
