@@ -1,8 +1,7 @@
 # Analytics Agent
 
-Connect to **Google Analytics 4**, **Firebase Auth**, and **PostgreSQL** with a single Google login — then use AI (Claude, ChatGPT, etc.) to analyse your data.
+Analytics Agent is a lightweight CLI that handles authentication and data access for **Google Analytics 4**, **Firebase Auth**, and **PostgreSQL** — producing a unified dataset for external analysis tools (AI agents, notebooks, scripts) rather than performing analysis itself.
 
-No service accounts. No JSON key files. No measurement IDs to hunt down.
 
 ## Quick Start
 
@@ -20,9 +19,14 @@ The setup wizard will:
 1. Open your browser for **Google sign-in**
 2. Auto-discover your **GA4 properties** — pick one from a list
 3. Auto-discover your **Firebase projects** — pick one from a list
-4. Ask for a **PostgreSQL connection string** (Neon, Supabase, or any Postgres)
+4. Ask for a **PostgreSQL connection string**
 
-That's it. Configuration is saved to `~/.analytics-agent/` and reused automatically.
+**Database connection options:**
+
+- **Public IP** (Neon, Supabase, Railway, or any hosted Postgres): just paste your connection string, e.g. `postgresql://USER:PASSWORD@HOST:PORT/DATABASE`
+- **Google Cloud SQL** (no public IP): requires a GCP service account with the `Cloud SQL Client` role. Set `GOOGLE_APPLICATION_CREDENTIALS` and `CLOUD_SQL_INSTANCE` env vars — see `.env.example` for details.
+
+Configuration is saved to `~/.analytics-agent/` and reused automatically.
 
 ## Usage
 
@@ -44,7 +48,8 @@ Then just ask:
 
 - "How many users signed up this week?"
 - "Show me the full funnel from landing page to first purchase"
-- "List the top 10 power users and show how they use the app"
+- "What do users who churn do differently in the first week?"
+- "Did this campaign actually bring users who stuck around?"
 
 The agent reads the skill files in `.claude/skills/` and knows how to connect to your GA4, Firebase, and database automatically — no code needed on your end.
 

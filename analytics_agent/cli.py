@@ -18,6 +18,8 @@ from analytics_agent import __version__
 from analytics_agent.config import (
     CONFIG_FILE,
     TOKEN_FILE,
+    clear_config,
+    clear_tokens,
     load_config,
     update_config,
 )
@@ -104,7 +106,6 @@ def _cmd_auth_login():
 
 def _cmd_auth_logout():
     from analytics_agent.auth import logout
-    from analytics_agent.config import clear_config
 
     logout()
     clear_config()
@@ -150,21 +151,61 @@ def _cmd_config_show():
 
 
 def _cmd_setup():
+    import questionary
+    from analytics_agent.auth import get_credentials, get_user_email
+
     print("\n" + "=" * 56)
     print("  Analytics Agent — First-Time Setup")
     print("=" * 56 + "\n")
 
     # ── Step 1: Auth ─────────────────────────────────────────────────────
-    from analytics_agent.auth import get_credentials
-
     creds = get_credentials()
+
+    if creds is not None:
+        email = get_user_email() or "(unknown)"
+        cfg = load_config()
+        print(f"  Already signed in as {email}")
+
+        existing = []
+        if cfg.get("ga4", {}).get("property_id"):
+            existing.append(f"GA4: {cfg['ga4'].get('property_name', cfg['ga4']['property_id'])}")
+        if cfg.get("firebase", {}).get("project_id"):
+            existing.append(f"Firebase: {cfg['firebase'].get('display_name', cfg['firebase']['project_id'])}")
+        if cfg.get("database", {}).get("connection_string"):
+            existing.append("Database: configured")
+
+        if existing:
+            print("  Current config:")
+            for item in existing:
+                print(f"    - {item}")
+            print()
+
+        reuse = questionary.confirm(
+            "Use existing login and config?", default=True
+        ).ask()
+
+        if reuse:
+            print("  Keeping existing setup.\n")
+            reconfigure = questionary.confirm(
+                "Re-select GA4 property, Firebase project, or database?", default=False
+            ).ask()
+            if reconfigure:
+                _setup_ga4(creds)
+                _setup_firebase(creds)
+                _setup_database()
+            print("\n" + "=" * 56)
+            print("  Setup complete!")
+            print(f"  Config saved to {CONFIG_FILE}")
+            print("=" * 56 + "\n")
+            return
+        else:
+            print("  Clearing existing config and tokens...\n")
+            clear_tokens()
+            clear_config()
+            creds = None
+
     if creds is None:
         creds = _cmd_auth_login()
-    else:
-        from analytics_agent.auth import get_user_email
-
-        email = get_user_email() or "(unknown)"
-        print(f"  Already signed in as {email}\n")
 
     if creds is None:
         print("Authentication failed — cannot continue.\n")
