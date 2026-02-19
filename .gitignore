@@ -15,7 +15,6 @@ altar-data-analyze/
 
 # Environment variables
 .env
-.env.*
 
 # Jupyter
 .ipynb_checkpoints/

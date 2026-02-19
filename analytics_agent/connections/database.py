@@ -41,7 +41,7 @@ def _create_engine_from_config():
 
 def _create_cloud_sql_engine():
     _ensure_gcp_credentials_env()
-    from google.cloud.sql.connector import Connector
+    from google.cloud.sql.connector import Connector  # type: ignore[import-unresolved]
 
     connector = Connector()
     instance = os.getenv("CLOUD_SQL_INSTANCE")

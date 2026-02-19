@@ -7,29 +7,38 @@ description: Query Google Analytics 4, Firebase Authentication, and PostgreSQL d
 
 Connect to **Google Analytics 4**, **Firebase Auth**, and **PostgreSQL** to analyze data. All authentication is handled via Google OAuth2 — no service accounts or API keys needed.
 
+## Slash Commands
+
+When the user types any of these commands, run the corresponding shell command immediately:
+
+| User types | Run in terminal |
+|---|---|
+| `/setup` | `uv run analytics-agent setup` |
+| `/login` | `uv run analytics-agent auth login` |
+| `/logout` | `uv run analytics-agent auth logout` |
+| `/status` | `uv run analytics-agent auth status` |
+| `/config` | `uv run analytics-agent config show` |
+| `/clean` | `uv run analytics-agent clean` |
+
+These are interactive CLI commands — run them in the terminal and let the user respond to prompts directly.
+
 ## Prerequisites
 
-If not already set up, run the one-time setup:
-
-```bash
-uv run analytics-agent setup
-```
+If not already set up, run `/setup` (or `uv run analytics-agent setup`).
 
 This opens a browser for Google sign-in, auto-discovers GA4 properties and Firebase projects, and saves a database connection string. Config is stored in `~/.analytics-agent/`.
 
-If a connection fails with an authentication error (expired or revoked token), re-login:
-
-```bash
-uv run analytics-agent auth login
-```
+If a connection fails with an authentication error (expired or revoked token), run `/login` to re-authenticate.
 
 Other auth commands:
 
 | Command | Description |
 |---|---|
-| `uv run analytics-agent auth login` | Re-authenticate with Google |
-| `uv run analytics-agent auth logout` | Clear stored tokens |
-| `uv run analytics-agent auth status` | Check current auth state |
+| `/login` | Re-authenticate with Google |
+| `/logout` | Clear stored tokens |
+| `/status` | Check current auth state |
+| `/config` | Show saved configuration |
+| `/clean` | Remove all config and tokens |
 
 ## Connecting to Data Sources
 

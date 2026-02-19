@@ -6,6 +6,7 @@ Commands:
     analytics-agent auth logout    Clear stored tokens
     analytics-agent auth status    Show current auth state
     analytics-agent config show    Print saved config
+    analytics-agent clean          Remove all stored config and tokens
 """
 
 import argparse
@@ -51,6 +52,9 @@ def main(argv: list[str] | None = None):
     config_sub = config_parser.add_subparsers(dest="config_command")
     config_sub.add_parser("show", help="Print current config")
 
+    # ── clean ────────────────────────────────────────────────────────────
+    sub.add_parser("clean", help="Remove all stored config and tokens")
+
     args = parser.parse_args(argv)
 
     logging.basicConfig(
@@ -78,6 +82,8 @@ def main(argv: list[str] | None = None):
             _cmd_config_show()
         else:
             config_parser.print_help()
+    elif args.command == "clean":
+        _cmd_clean()
     else:
         parser.print_help()
 
@@ -98,9 +104,11 @@ def _cmd_auth_login():
 
 def _cmd_auth_logout():
     from analytics_agent.auth import logout
+    from analytics_agent.config import clear_config
 
     logout()
-    print("Logged out — stored tokens cleared.\n")
+    clear_config()
+    print("Logged out — tokens and config cleared.\n")
 
 
 def _cmd_auth_status():
@@ -116,6 +124,21 @@ def _cmd_auth_status():
     print(f"  Signed in as:  {email}")
     print(f"  Token status:  {valid}")
     print(f"  Token file:    {TOKEN_FILE}\n")
+
+
+def _cmd_clean():
+    import questionary
+    from analytics_agent.config import CONFIG_DIR, clean_all
+
+    confirm = questionary.confirm(
+        f"This will delete all config and tokens in {CONFIG_DIR}. Continue?",
+        default=False,
+    ).ask()
+    if not confirm:
+        print("  Aborted.\n")
+        return
+    clean_all()
+    print("  All config and tokens removed.\n")
 
 
 def _cmd_config_show():
@@ -185,16 +208,23 @@ def _setup_ga4(creds):
             print("  Skipping GA4 setup.\n")
         return
 
-    for i, p in enumerate(props, 1):
-        print(f"    {i}. {p['property_name']}  (ID: {p['property_id']}, Account: {p['account_name']})")
+    import questionary
 
-    print()
-    choice = input(f"  Select a property [1-{len(props)}]: ").strip()
-    try:
-        idx = int(choice) - 1
-        selected = props[idx]
-    except (ValueError, IndexError):
-        selected = props[0]
+    choices = [
+        questionary.Choice(
+            title=f"{p['property_name']}  (ID: {p['property_id']}, Account: {p['account_name']})",
+            value=i,
+        )
+        for i, p in enumerate(props)
+    ]
+    choices.append(questionary.Choice(title="Skip", value=-1))
+
+    idx = questionary.select("Select a GA4 property:", choices=choices).ask()
+    if idx is None or idx == -1:
+        print("  Skipping GA4 setup.\n")
+        return
+
+    selected = props[idx]
 
     update_config("ga4", {
         "property_id": selected["property_id"],
@@ -226,16 +256,23 @@ def _setup_firebase(creds):
             print("  Skipping Firebase setup.\n")
         return
 
-    for i, p in enumerate(projects, 1):
-        print(f"    {i}. {p['display_name']}  (ID: {p['project_id']})")
+    import questionary
 
-    print()
-    choice = input(f"  Select a project [1-{len(projects)}]: ").strip()
-    try:
-        idx = int(choice) - 1
-        selected = projects[idx]
-    except (ValueError, IndexError):
-        selected = projects[0]
+    choices = [
+        questionary.Choice(
+            title=f"{p['display_name']}  (ID: {p['project_id']})",
+            value=i,
+        )
+        for i, p in enumerate(projects)
+    ]
+    choices.append(questionary.Choice(title="Skip", value=-1))
+
+    idx = questionary.select("Select a Firebase project:", choices=choices).ask()
+    if idx is None or idx == -1:
+        print("  Skipping Firebase setup.\n")
+        return
+
+    selected = projects[idx]
 
     update_config("firebase", {
         "project_id": selected["project_id"],
@@ -258,7 +295,11 @@ def _setup_database():
     print("    Local:    postgresql://user:pass@localhost:5432/mydb")
     print()
 
-    conn_string = input("  Connection string (or Enter to skip): ").strip()
+    import questionary
+
+    conn_string = questionary.text(
+        "Connection string (or Enter to skip):",
+    ).ask()
     if not conn_string:
         print("  Skipping database setup.\n")
         return
@@ -274,8 +315,8 @@ def _setup_database():
         print("  Connection test: OK")
     except Exception as e:
         print(f"  Connection test: FAILED ({e})")
-        proceed = input("  Save anyway? [y/N]: ").strip().lower()
-        if proceed != "y":
+        proceed = questionary.confirm("Save anyway?", default=False).ask()
+        if not proceed:
             print("  Skipping database setup.\n")
             return
 

@@ -68,3 +68,18 @@ def clear_tokens():
     if TOKEN_FILE.exists():
         TOKEN_FILE.unlink()
         logger.info("OAuth2 tokens cleared")
+
+
+def clear_config():
+    if CONFIG_FILE.exists():
+        CONFIG_FILE.unlink()
+        logger.info("Config cleared")
+
+
+def clean_all():
+    """Remove all stored config and tokens."""
+    clear_tokens()
+    clear_config()
+    if CONFIG_DIR.exists() and not any(CONFIG_DIR.iterdir()):
+        CONFIG_DIR.rmdir()
+        logger.info(f"Removed empty config directory {CONFIG_DIR}")
