@@ -21,6 +21,8 @@ The setup wizard will:
 3. Auto-discover your **Firebase projects** — pick one from a list
 4. Ask for a **PostgreSQL connection string**
 
+> **Note:** The bundled Google OAuth client is currently pending verification. During sign-in, Google will show an "unverified app" warning — click **Advanced → Go to analytics-agent** to proceed. All tokens are stored locally on your machine. If you prefer, you can [create your own OAuth client](https://console.cloud.google.com/apis/credentials) and replace the credentials in `analytics_agent/auth.py`.
+
 **Database connection options:**
 
 - **Public IP** (Neon, Supabase, Railway, or any hosted Postgres): just paste your connection string, e.g. `postgresql://USER:PASSWORD@HOST:PORT/DATABASE`

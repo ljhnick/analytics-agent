@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 CLIENT_CONFIG = {
     "installed": {
         "client_id": "1057128499704-e64gr7i7j3oh9mjsp7kblfrktibept6d.apps.googleusercontent.com",
-        "client_secret": "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",
+        "client_secret": "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", # Google's documentation explicitly states that the client secret for installed (desktop/mobile) apps is not expected to be kept confidential. https://developers.google.com/identity/protocols/oauth2/native-app
         "auth_uri": "https://accounts.google.com/o/oauth2/auth",
         "token_uri": "https://oauth2.googleapis.com/token",
         "redirect_uris": ["http://localhost"],
